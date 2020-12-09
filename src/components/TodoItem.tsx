@@ -126,7 +126,6 @@ export const TodoItem = ({id, title, description}: Todo) => {
 
   useCode(
     () => [
-      startClock(clock),
       cond(and(clockRunning(clock), eq(gestureState, State.END)), [
         cond(lessThan(translateX, -100), set(to, -100), set(to, 0)),
         set(finished, withSpring(translateX, to, clock)),
