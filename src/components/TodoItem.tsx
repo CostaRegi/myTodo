@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useRef} from 'react';
 import {Text, StyleSheet, Dimensions, View} from 'react-native';
 import {
   PanGestureHandler,
@@ -15,7 +15,6 @@ import Animated, {
   Clock,
   clockRunning,
   cond,
-  debug,
   eq,
   event,
   lessThan,
@@ -29,7 +28,6 @@ import Animated, {
   useCode,
   useValue,
   Easing,
-  or,
   call,
 } from 'react-native-reanimated';
 import {Todo, useTodoDispatch} from '../context/TodoContext';
@@ -79,41 +77,14 @@ const styles = StyleSheet.create({
 
 const {width} = Dimensions.get('window');
 
-const withSpring = (
-  position: Animated.Value<number>,
-  toValue: Animated.Value<number>,
-  clock: Clock,
-): Animated.Value<number> => {
-  spring(
-    clock,
-    {
-      finished: new Animated.Value(0),
-      position: position,
-      velocity: new Animated.Value(0),
-      time: new Animated.Value(0),
-    },
-    {
-      toValue: toValue,
-      damping: 20,
-      mass: 0.2,
-      stiffness: 100,
-      overshootClamping: false,
-      restSpeedThreshold: 0.2,
-      restDisplacementThreshold: 0.2,
-    },
-  );
-
-  return new Animated.Value(1);
-};
-
 export const TodoItem = ({id, title, description}: Todo) => {
-  const clock = new Clock();
+  const clock = useRef(new Clock()).current;
   const dispatch = useTodoDispatch();
   const translateX = useValue(0);
   const offsetX = useValue(0);
   const finished = useValue(0);
   const height = useValue(HEIGHT);
-  const to = useValue(0);
+  const to = useValue<number>(0);
   const gestureState = useValue(State.UNDETERMINED);
   const shouldDelete = useValue<number>(0);
 
@@ -128,54 +99,51 @@ export const TodoItem = ({id, title, description}: Todo) => {
     () => [
       cond(and(clockRunning(clock), eq(gestureState, State.END)), [
         cond(lessThan(translateX, -100), set(to, -100), set(to, 0)),
-        set(finished, withSpring(translateX, to, clock)),
-        // spring(
-        //   clock,
-        //   {
-        //     finished: finished,
-        //     position: translateX,
-        //     velocity: new Animated.Value(0),
-        //     time: new Animated.Value(0),
-        //   },
-        //   {
-        //     toValue: to,
-        //     damping: 20,
-        //     mass: 0.2,
-        //     stiffness: 100,
-        //     overshootClamping: false,
-        //     restSpeedThreshold: 0.2,
-        //     restDisplacementThreshold: 0.2,
-        //   },
-        // ),
+
+        spring(
+          clock,
+          {
+            finished: finished,
+            position: translateX,
+            velocity: new Animated.Value(0),
+            time: new Animated.Value(0),
+          },
+          {
+            toValue: to,
+            damping: 20,
+            mass: 0.2,
+            stiffness: 100,
+            overshootClamping: false,
+            restSpeedThreshold: 0.2,
+            restDisplacementThreshold: 0.2,
+          },
+        ),
         cond(finished, [
-          // stopClock(clock),
           set(offsetX, translateX),
           set(finished, new Animated.Value(0)),
+          stopClock(clock),
         ]),
       ]),
-      // cond(gestureState, State.END, [
       cond(shouldDelete, [
         startClock(clock),
-        withSpring(translateX, new Animated.Value(-width), clock),
-
-        // spring(
-        //   clock,
-        //   {
-        //     finished: new Animated.Value(0),
-        //     position: translateX,
-        //     velocity: new Animated.Value(0),
-        //     time: new Animated.Value(0),
-        //   },
-        //   {
-        //     toValue: new Animated.Value(-width),
-        //     damping: 20,
-        //     mass: 0.2,
-        //     stiffness: 100,
-        //     overshootClamping: false,
-        //     restSpeedThreshold: 0.2,
-        //     restDisplacementThreshold: 0.2,
-        //   },
-        // ),
+        spring(
+          clock,
+          {
+            finished: new Animated.Value(0),
+            position: translateX,
+            velocity: new Animated.Value(0),
+            time: new Animated.Value(0),
+          },
+          {
+            toValue: new Animated.Value(-width),
+            damping: 20,
+            mass: 0.2,
+            stiffness: 100,
+            overshootClamping: false,
+            restSpeedThreshold: 0.2,
+            restDisplacementThreshold: 0.2,
+          },
+        ),
         timing(
           clock,
           {
@@ -190,11 +158,11 @@ export const TodoItem = ({id, title, description}: Todo) => {
             easing: Easing.linear,
           },
         ),
-        // ]),
+
         cond(finished, [
-          // stopClock(clock),
           set(finished, new Animated.Value(0)),
           set(shouldDelete, 0),
+          stopClock(clock),
         ]),
         cond(not(clockRunning(clock)), call([], deleteItem)),
       ]),
@@ -211,7 +179,6 @@ export const TodoItem = ({id, title, description}: Todo) => {
             cond(eq(gestureState, State.ACTIVE), [
               set(translateX, add(offsetX, min(translationX, 0))),
             ]),
-            // cond(eq(gestureState, State.END), set(offsetX, translateX)),
           ]),
       },
     ],
@@ -224,7 +191,7 @@ export const TodoItem = ({id, title, description}: Todo) => {
         block([
           set(gestureState, state),
 
-          cond(and(eq(state, State.END), not(clockRunning(clock))), [
+          cond(and(eq(gestureState, State.END), not(clockRunning(clock))), [
             startClock(clock),
           ]),
         ]),
